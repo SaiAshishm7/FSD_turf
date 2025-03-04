@@ -1,9 +1,11 @@
-
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useNavigate } from "react-router-dom";
 
 const Hero = () => {
+  const navigate = useNavigate();
+
   return (
     <section className="relative min-h-screen flex items-center pt-24 pb-12 overflow-hidden">
       {/* Background gradient */}
@@ -31,11 +33,18 @@ const Hero = () => {
           </div>
 
           <div className="flex flex-col sm:flex-row gap-4 animate-fade-in opacity-0 [animation-delay:450ms]">
-            <Button className="rounded-full px-8 py-6 text-base">
+            <Button 
+              className="rounded-full px-8 py-6 text-base"
+              onClick={() => navigate('/turfs')}
+            >
               Book Now
               <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
-            <Button variant="outline" className="rounded-full px-8 py-6 text-base">
+            <Button 
+              variant="outline" 
+              className="rounded-full px-8 py-6 text-base"
+              onClick={() => navigate('/turfs')}
+            >
               Explore Turfs
             </Button>
           </div>

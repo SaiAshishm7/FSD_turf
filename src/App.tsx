@@ -1,4 +1,3 @@
-
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Index from "@/pages/Index";
 import Auth from "@/pages/Auth";
@@ -9,6 +8,7 @@ import MyTurfs from "@/pages/MyTurfs";
 import AdminDashboard from "@/pages/AdminDashboard";
 import NotFound from "@/pages/NotFound";
 import Turfs from "@/pages/Turfs";
+import TurfBookings from "@/pages/TurfBookings";
 import "./App.css";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
@@ -33,6 +33,7 @@ function App() {
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/turfs" element={<Turfs />} />
             <Route path="/edit-turf/:id" element={<AddTurf />} />
+            <Route path="/turf-bookings/:id" element={<TurfBookings />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
           <Toaster />

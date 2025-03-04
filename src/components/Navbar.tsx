@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useLocation, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -35,7 +34,7 @@ const Navbar = () => {
 
   const navigationLinks = [
     { name: "Home", href: "/" },
-    { name: "Book", href: "/#booking" },
+    { name: "Book", href: "/turfs" },
     ...(user ? [{ name: "My Bookings", href: "/my-bookings" }] : []),
     ...(isAdmin ? [{ name: "My Turfs", href: "/my-turfs" }] : []),
   ];
