@@ -110,7 +110,8 @@ const MyBookings = () => {
             )
           `)
           .eq('user_id', user.id)
-          .order('booking_date', { ascending: false });
+          .order('booking_date', { ascending: false })
+          .eq('status', 'confirmed');
           
         if (error) throw error;
         
@@ -132,17 +133,6 @@ const MyBookings = () => {
   }, [user, toast, navigate]);
 
   const handleCancelRequest = (bookingId: string) => {
-    const booking = bookings.find(b => b.id === bookingId);
-    
-    if (booking && !canCancelBooking(booking)) {
-      toast({
-        title: "Cannot cancel booking",
-        description: "Bookings can only be cancelled at least 7 hours before the start time.",
-        variant: "destructive",
-      });
-      return;
-    }
-    
     setConfirmCancelId(bookingId);
   };
 
@@ -150,6 +140,7 @@ const MyBookings = () => {
     if (!confirmCancelId) return;
     
     setIsCancelling(true);
+    console.log("Starting cancellation for booking:", confirmCancelId);
     
     try {
       const { data: bookingData, error: fetchError } = await supabase
@@ -165,13 +156,43 @@ const MyBookings = () => {
         .single();
       
       if (fetchError) throw fetchError;
+      console.log("Found booking data:", bookingData);
       
       const { error: updateError } = await supabase
         .from('bookings')
-        .update({ status: 'cancelled' })
+        .update({ 
+          status: 'cancelled',
+          updated_at: new Date().toISOString()
+        })
         .eq('id', confirmCancelId);
         
       if (updateError) throw updateError;
+      
+      const { data: updatedBooking, error: confirmError } = await supabase
+        .from('bookings')
+        .select('*')
+        .eq('id', confirmCancelId)
+        .single();
+        
+      if (confirmError) throw confirmError;
+      console.log("Booking updated:", updatedBooking);
+
+      const { data: refreshedBookings, error: refreshError } = await supabase
+        .from('bookings')
+        .select(`
+          *,
+          turf:turf_id (
+            name,
+            location,
+            image
+          )
+        `)
+        .eq('user_id', user?.id)
+        .eq('status', 'confirmed')
+        .order('booking_date', { ascending: false });
+
+      if (refreshError) throw refreshError;
+      setBookings(refreshedBookings || []);
       
       try {
         if (user && user.email && bookingData) {
@@ -204,12 +225,6 @@ const MyBookings = () => {
       } catch (emailError) {
         console.error('Error sending cancellation email:', emailError);
       }
-      
-      setBookings(bookings.map(booking => 
-        booking.id === confirmCancelId 
-          ? { ...booking, status: 'cancelled' } 
-          : booking
-      ));
       
       toast({
         title: "Booking cancelled",

@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { Request, Response } from 'express';
 import nodemailer from 'nodemailer';
 import cors from 'cors';
 
@@ -44,9 +44,9 @@ const formatDate = (dateString: string) => {
   });
 };
 
-app.post('/send-email', async (req, res) => {
+app.post('/send-email', async (req: Request<{}, {}, EmailPayload>, res: Response) => {
   try {
-    const payload = req.body as EmailPayload;
+    const payload = req.body;
     console.log('Received payload:', payload);
 
     // Validate payload
@@ -127,7 +127,7 @@ app.post('/send-email', async (req, res) => {
     console.error('Error in email function:', error);
     res.status(500).json({ 
       error: 'Failed to send email',
-      details: error.message 
+      details: error instanceof Error ? error.message : 'Unknown error' 
     });
   }
 });
