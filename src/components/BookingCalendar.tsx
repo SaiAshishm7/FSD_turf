@@ -243,7 +243,7 @@ const BookingCalendar = () => {
         .insert({
           user_id: user.id,
           turf_id: selectedTurf,
-          booking_date: date.toISOString().split('T')[0],
+          booking_date: date ? new Date(date.getTime() - (date.getTimezoneOffset() * 60000)).toISOString().split('T')[0] : '',
           start_time: startTime,
           end_time: endTime,
           total_price: price,

@@ -31,7 +31,7 @@ interface Booking {
   start_time: string;
   end_time: string;
   total_price: number;
-  status: string;
+  status: 'confirmed' | 'cancelled' | 'pending';
   created_at: string;
   turf_id: string;
   turf?: {
@@ -79,6 +79,8 @@ const MyBookings = () => {
       
       const timeDiff = (bookingDate.getTime() - now.getTime()) / (1000 * 60 * 60);
       
+      console.log(`Booking ${booking.id} status: ${booking.status}, can cancel: ${timeDiff >= 7}`);
+      
       return timeDiff >= 7;
     } catch (error) {
       console.error("Error calculating cancellation eligibility:", error);
@@ -110,13 +112,12 @@ const MyBookings = () => {
             )
           `)
           .eq('user_id', user.id)
-          .order('booking_date', { ascending: false })
-          .eq('status', 'confirmed');
+          .order('booking_date', { ascending: false });
           
         if (error) throw error;
         
-        console.log("Fetched bookings:", data);
-        setBookings(data || []);
+        console.log("Fetched bookings with statuses:", data?.map(b => ({id: b.id, status: b.status})));
+        setBookings(data as Booking[] || []);
       } catch (error: any) {
         console.error('Error fetching bookings:', error.message);
         toast({
@@ -161,13 +162,28 @@ const MyBookings = () => {
       const { error: updateError } = await supabase
         .from('bookings')
         .update({ 
-          status: 'cancelled',
+          status: 'cancelled' as const,
           updated_at: new Date().toISOString()
         })
-        .eq('id', confirmCancelId);
+        .eq('id', confirmCancelId)
+        .select();
         
       if (updateError) throw updateError;
+      console.log("Successfully updated booking status to cancelled");
       
+      // Verify the update
+      const { data: verifyUpdate, error: verifyError } = await supabase
+        .from('bookings')
+        .select('id, status, booking_date')
+        .eq('id', confirmCancelId)
+        .single();
+        
+      if (verifyError) {
+        console.error("Error verifying update:", verifyError);
+      } else {
+        console.log("Verified booking status after update:", verifyUpdate);
+      }
+
       const { data: updatedBooking, error: confirmError } = await supabase
         .from('bookings')
         .select('*')
@@ -175,7 +191,7 @@ const MyBookings = () => {
         .single();
         
       if (confirmError) throw confirmError;
-      console.log("Booking updated:", updatedBooking);
+      console.log("Confirmed booking update:", updatedBooking);
 
       const { data: refreshedBookings, error: refreshError } = await supabase
         .from('bookings')
@@ -188,11 +204,17 @@ const MyBookings = () => {
           )
         `)
         .eq('user_id', user?.id)
-        .eq('status', 'confirmed')
-        .order('booking_date', { ascending: false });
+        .order('booking_date', { ascending: false })
+        .limit(50);
 
       if (refreshError) throw refreshError;
-      setBookings(refreshedBookings || []);
+      console.log("Raw refreshed bookings:", refreshedBookings);
+      console.log("Refreshed bookings after cancellation:", refreshedBookings?.map(b => ({
+        id: b.id,
+        status: b.status,
+        date: b.booking_date
+      })));
+      setBookings(refreshedBookings as Booking[] || []);
       
       try {
         if (user && user.email && bookingData) {
@@ -321,30 +343,28 @@ const MyBookings = () => {
                         <p className="text-lg font-bold">{formatPrice(booking.total_price)}</p>
                       </div>
                       
-                      {booking.status !== 'cancelled' && (
-                        <div className="flex space-x-3">
+                      <div className="flex space-x-3">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => navigate(`/turf/${booking.turf_id}`)}
+                        >
+                          View Turf
+                        </Button>
+                        
+                        {booking.status === 'confirmed' && canCancelBooking(booking) && (
                           <Button 
-                            variant="outline" 
+                            variant="destructive" 
                             size="sm"
-                            onClick={() => navigate(`/turf/${booking.turf_id}`)}
+                            onClick={() => handleCancelRequest(booking.id)}
                           >
-                            View Turf
+                            Cancel Booking
                           </Button>
-                          
-                          {booking.status !== 'cancelled' && canCancelBooking(booking) && (
-                            <Button 
-                              variant="destructive" 
-                              size="sm"
-                              onClick={() => handleCancelRequest(booking.id)}
-                            >
-                              Cancel Booking
-                            </Button>
-                          )}
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </div>
                     
-                    {booking.status !== 'cancelled' && !canCancelBooking(booking) && (
+                    {booking.status === 'confirmed' && !canCancelBooking(booking) && (
                       <div className="flex items-center mt-3 text-xs text-amber-600">
                         <AlertCircle className="h-3 w-3 mr-1" />
                         <span>Cancellation is only available 7 hours before the booking time</span>
