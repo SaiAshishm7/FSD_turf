@@ -333,7 +333,7 @@ const BookingCalendar = () => {
               <div className="space-y-2">
                 <h3 className="text-lg font-medium">Select Date & Time</h3>
                 <p className="text-sm text-muted-foreground">
-                  Choose your preferred date and time slot for booking
+                  Choose your preferred date and time slot for booking. You can book up to 5 days in advance.
                 </p>
               </div>
 
@@ -347,7 +347,12 @@ const BookingCalendar = () => {
                   disabled={(date) => {
                     const now = new Date();
                     now.setHours(0, 0, 0, 0);
-                    return date < now;
+                    
+                    const maxDate = new Date();
+                    maxDate.setDate(maxDate.getDate() + 5); // Allow bookings up to 5 days ahead
+                    maxDate.setHours(23, 59, 59, 999);
+                    
+                    return date < now || date > maxDate;
                   }}
                 />
               </div>
