@@ -9,6 +9,7 @@ import AdminDashboard from "@/pages/AdminDashboard";
 import NotFound from "@/pages/NotFound";
 import Turfs from "@/pages/Turfs";
 import TurfBookings from "@/pages/TurfBookings";
+import ResetPassword from "@/pages/ResetPassword";
 import "./App.css";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
@@ -26,6 +27,7 @@ function App() {
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/add-turf" element={<AddTurf />} />
             <Route path="/turf/:id" element={<TurfDetail />} />
             <Route path="/my-bookings" element={<MyBookings />} />

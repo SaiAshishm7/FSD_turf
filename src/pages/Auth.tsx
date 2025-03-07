@@ -1,6 +1,5 @@
-
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -105,9 +104,9 @@ const Auth = () => {
                     <label htmlFor="password" className="text-sm font-medium">
                       Password
                     </label>
-                    <a href="#" className="text-sm text-primary hover:underline">
+                    <Link to="/reset-password" className="text-sm text-primary hover:underline">
                       Forgot password?
-                    </a>
+                    </Link>
                   </div>
                   <Input 
                     id="password" 
