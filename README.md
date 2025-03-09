@@ -130,12 +130,3 @@ The application uses the following main tables in Supabase:
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Support
-
-For support, email support@friendlyturf.com or create an issue in the repository.
-
-## Acknowledgments
-
-- [Supabase](https://supabase.com/) for the backend infrastructure
-- [Shadcn UI](https://ui.shadcn.com/) for the beautiful UI components
-- [Tailwind CSS](https://tailwindcss.com/) for the styling system
