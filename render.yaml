@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: friendly-turf-booking
+    env: node
+    buildCommand: npm install && npm run build
+    startCommand: node server.js
+    envVars:
+      - key: NODE_VERSION
+        value: 18
+      - key: PORT
+        value: 3000
+    healthCheckPath: /
+    autoDeploy: true
+    staticPublishPath: ./dist
+    pullRequestPreviewsEnabled: true
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html 
