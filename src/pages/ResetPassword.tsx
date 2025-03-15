@@ -6,20 +6,26 @@ import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
 
+const RESET_COOLDOWN = 60; // 60 seconds cooldown
+
 const ResetPassword = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
   const [searchParams] = useSearchParams();
   const [isResetMode, setIsResetMode] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
   useEffect(() => {
-    // Check if we have a recovery token in the URL
-    const token = searchParams.get("token");
-    if (token) {
+    // Check URL parameters for reset mode
+    const access_token = searchParams.get("access_token");
+    const refresh_token = searchParams.get("refresh_token");
+    const type = searchParams.get("type");
+
+    if ((access_token || refresh_token) && type === "recovery") {
       setIsResetMode(true);
     }
   }, [searchParams]);
@@ -27,23 +33,61 @@ const ResetPassword = () => {
   const handleRequestReset = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email) return;
+    
+    if (cooldown > 0) {
+      toast({
+        title: "Please wait",
+        description: `You can request another reset link in ${cooldown} seconds.`,
+        variant: "destructive",
+      });
+      return;
+    }
 
     setLoading(true);
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
+      // Get the current site URL
+      const siteURL = window.location.origin;
+      console.log('Current site URL:', siteURL);
+
+      const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${siteURL}/reset-password?type=recovery`,
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Reset password error:', error);
+        if (error.message?.toLowerCase().includes('rate limit')) {
+          setCooldown(RESET_COOLDOWN);
+          toast({
+            title: "Too many attempts",
+            description: `Please wait ${RESET_COOLDOWN} seconds before requesting another reset link.`,
+            variant: "destructive",
+          });
+          return;
+        }
+        if (error.message?.includes('valid URL')) {
+          console.error('Invalid URL error. Site URL:', siteURL);
+          toast({
+            title: "Error",
+            description: "Please try again in a few minutes. If the problem persists, contact support.",
+            variant: "destructive",
+          });
+          return;
+        }
+        throw error;
+      }
+
+      console.log('Password reset initiated successfully');
 
       toast({
         title: "Check your email",
-        description: "We've sent you a password reset link.",
+        description: "We've sent you a password reset link. Please check your spam folder if you don't see it.",
       });
+      setCooldown(RESET_COOLDOWN);
     } catch (error: any) {
+      console.error('Reset password error details:', error);
       toast({
         title: "Error",
-        description: error.message || "Failed to send reset link. Please try again.",
+        description: "Unable to send reset link. Please try again later.",
         variant: "destructive",
       });
     } finally {
@@ -62,23 +106,62 @@ const ResetPassword = () => {
       return;
     }
 
+    if (password.length < 6) {
+      toast({
+        title: "Error",
+        description: "Password must be at least 6 characters long.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setLoading(true);
     try {
+      // Get the tokens from URL
+      const access_token = searchParams.get("access_token");
+      const refresh_token = searchParams.get("refresh_token");
+
+      if (!access_token && !refresh_token) {
+        throw new Error("No reset token found. Please request a new reset link.");
+      }
+
+      // Set the session if we have the tokens
+      if (access_token && refresh_token) {
+        const { data: { session }, error: sessionError } = await supabase.auth.setSession({
+          access_token,
+          refresh_token
+        });
+
+        if (sessionError) throw sessionError;
+        console.log('Session set successfully:', session);
+      }
+
       const { error } = await supabase.auth.updateUser({
-        password: password,
+        password: password
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Update password error:', error);
+        throw error;
+      }
 
       toast({
         title: "Success",
         description: "Your password has been reset. Please sign in with your new password.",
       });
-      navigate("/auth");
+      
+      // Clear the URL parameters
+      window.history.replaceState({}, document.title, window.location.pathname);
+      
+      // Navigate to login
+      setTimeout(() => {
+        navigate("/auth");
+      }, 2000);
     } catch (error: any) {
+      console.error('Reset password error:', error);
       toast({
         title: "Error",
-        description: error.message || "Failed to reset password. Please try again.",
+        description: error.message || "Failed to reset password. Please try again or request a new reset link.",
         variant: "destructive",
       });
     } finally {
@@ -110,6 +193,11 @@ const ResetPassword = () => {
                 onChange={(e) => setEmail(e.target.value)}
                 required
               />
+              {cooldown > 0 && (
+                <p className="text-sm text-muted-foreground text-center">
+                  You can request another reset link in {cooldown} seconds
+                </p>
+              )}
             </div>
           ) : (
             <>
@@ -136,7 +224,11 @@ const ResetPassword = () => {
             </>
           )}
 
-          <Button className="w-full" type="submit" disabled={loading}>
+          <Button 
+            className="w-full" 
+            type="submit" 
+            disabled={loading || (!isResetMode && cooldown > 0)}
+          >
             {loading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
