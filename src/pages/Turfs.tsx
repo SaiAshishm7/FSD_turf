@@ -1,14 +1,14 @@
-
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Star, MapPin, Users, Clock } from "lucide-react";
+import { Star, MapPin, Users, Clock, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import { Input } from "@/components/ui/input";
 
 interface Turf {
   id: string;
@@ -26,6 +26,8 @@ interface Turf {
 const Turfs = () => {
   const [hoveredCard, setHoveredCard] = useState<string | null>(null);
   const [turfs, setTurfs] = useState<Turf[]>([]);
+  const [filteredTurfs, setFilteredTurfs] = useState<Turf[]>([]);
+  const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -41,6 +43,7 @@ const Turfs = () => {
         if (error) throw error;
         
         setTurfs(data || []);
+        setFilteredTurfs(data || []);
       } catch (error: any) {
         console.error('Error fetching turfs:', error.message);
         toast({
@@ -55,6 +58,17 @@ const Turfs = () => {
 
     fetchTurfs();
   }, [toast]);
+
+  useEffect(() => {
+    const filtered = turfs.filter(turf => 
+      turf.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      turf.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (turf.features || []).some(feature => 
+        feature.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+    );
+    setFilteredTurfs(filtered);
+  }, [searchTerm, turfs]);
 
   // Format currency in Indian Rupees
   const formatPrice = (price: number) => {
@@ -79,6 +93,44 @@ const Turfs = () => {
             </p>
           </div>
 
+          <div className="max-w-md mx-auto mb-12">
+            <div className="relative group">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors duration-200" />
+              <Input
+                placeholder="Search by name, location, or features..."
+                className="pl-10 pr-10 h-12 text-base rounded-xl border-2 transition-all duration-200 focus:border-primary focus:ring-2 focus:ring-primary/20"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm("")}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-primary transition-colors duration-200"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                  </svg>
+                </button>
+              )}
+            </div>
+            {searchTerm && (
+              <p className="text-sm text-muted-foreground mt-2 text-center">
+                Found {filteredTurfs.length} {filteredTurfs.length === 1 ? 'turf' : 'turfs'} matching your search
+              </p>
+            )}
+          </div>
+
           {loading ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {[1, 2, 3, 4, 5, 6].map((i) => (
@@ -97,9 +149,9 @@ const Turfs = () => {
                 </Card>
               ))}
             </div>
-          ) : turfs.length > 0 ? (
+          ) : filteredTurfs.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {turfs.map((turf, index) => (
+              {filteredTurfs.map((turf, index) => (
                 <Card
                   key={turf.id}
                   className={cn(
@@ -183,7 +235,7 @@ const Turfs = () => {
           ) : (
             <div className="text-center py-12 bg-muted/20 rounded-xl border border-border animate-fade-in opacity-0">
               <p className="text-lg text-muted-foreground">
-                No turf listings available yet.
+                {searchTerm ? "No turfs found matching your search." : "No turf listings available yet."}
               </p>
             </div>
           )}
