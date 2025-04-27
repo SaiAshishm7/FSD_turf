@@ -1,0 +1,21 @@
+{
+  "name": "KickNClick - Friendly Turf Booking",
+  "short_name": "KickNClick",
+  "description": "Book your favorite turf for sports activities. Easy, fast, and reliable turf booking platform.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#4CAF50",
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ]
+} 
