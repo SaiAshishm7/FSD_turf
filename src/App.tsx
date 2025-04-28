@@ -10,6 +10,7 @@ import NotFound from "@/pages/NotFound";
 import Turfs from "@/pages/Turfs";
 import TurfBookings from "@/pages/TurfBookings";
 import ResetPassword from "@/pages/ResetPassword";
+import Profile from "@/pages/Profile";
 import "./App.css";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
@@ -37,6 +38,7 @@ function App() {
             <Route path="/turfs" element={<Turfs />} />
             <Route path="/edit-turf/:id" element={<AddTurf />} />
             <Route path="/turf-bookings/:id" element={<TurfBookings />} />
+            <Route path="/profile" element={<Profile />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
           <Toaster />

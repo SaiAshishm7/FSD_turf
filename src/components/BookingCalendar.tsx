@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Calendar as CalendarIcon, Clock, Users, Info } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, Users, Info, Star } from "lucide-react";
 import { 
   Select, 
   SelectContent, 
@@ -11,6 +11,7 @@ import {
   SelectValue 
 } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
+import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/context/AuthContext";
@@ -59,6 +60,8 @@ const BookingCalendar = () => {
   const [price, setPrice] = useState<number>(1350);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [showTurfSelect, setShowTurfSelect] = useState<boolean>(true);
+  const [usePoints, setUsePoints] = useState<boolean>(false);
+  const [userPoints, setUserPoints] = useState<number>(0);
   
   const { toast } = useToast();
   const { user } = useAuth();
@@ -174,10 +177,33 @@ const BookingCalendar = () => {
     if (selectedTurf) {
       const turf = turfs.find(t => t.id === selectedTurf);
       if (turf) {
-        setPrice(turf.price * duration);
+        const basePrice = turf.price * duration;
+        const finalPrice = usePoints ? Math.max(0, basePrice - userPoints) : basePrice;
+        setPrice(finalPrice);
       }
     }
-  }, [duration, selectedTurf, turfs]);
+  }, [duration, selectedTurf, turfs, usePoints, userPoints]);
+
+  useEffect(() => {
+    const fetchUserPoints = async () => {
+      if (!user) return;
+      
+      try {
+        const { data, error } = await supabase
+          .from('user_points')
+          .select('points')
+          .eq('user_id', user.id)
+          .single();
+          
+        if (error) throw error;
+        setUserPoints(data?.points || 0);
+      } catch (error) {
+        console.error('Error fetching user points:', error);
+      }
+    };
+    
+    fetchUserPoints();
+  }, [user]);
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-IN', {
@@ -219,25 +245,75 @@ const BookingCalendar = () => {
     }
   };
 
+  // Helper to send email
+  const sendBookingEmail = async (
+    type: 'confirmation' | 'cancellation',
+    bookingDetails: {
+      bookingId: string;
+      turfName: string;
+      date: string;
+      startTime: string;
+      endTime: string;
+      totalPrice: number;
+    },
+    userEmail: string
+  ) => {
+    try {
+      await fetch('http://localhost:3001/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: userEmail,
+          type,
+          bookingDetails,
+        }),
+      });
+    } catch (error) {
+      console.error('Error sending email:', error);
+    }
+  };
+
+  // Refactor fetchBookedSlots to be callable
+  const fetchBookedSlots = async (dateToFetch = date, turfToFetch = selectedTurf) => {
+    if (!dateToFetch || !turfToFetch) return;
+    const dateStr = dateToFetch.toISOString().split('T')[0];
+    try {
+      const { data, error } = await supabase
+        .from('bookings')
+        .select('booking_date, start_time, end_time')
+        .eq('booking_date', dateStr)
+        .eq('turf_id', turfToFetch)
+        .eq('status', 'confirmed');
+      if (error) throw error;
+      const formattedData = data?.map(item => ({
+        date: item.booking_date,
+        start_time: item.start_time,
+        end_time: item.end_time
+      })) || [];
+      setBookedSlots(formattedData);
+    } catch (error) {
+      console.error('Error fetching booked slots:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load booking information. Please try again.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const handleConfirmBooking = async () => {
     if (!date || !selectedTurf || !isCurrentSelectionValid()) return;
-    
     if (!user) {
       toast({
-        title: "Authentication required",
-        description: "Please sign in to book a turf",
-        variant: "destructive",
+        title: 'Authentication required',
+        description: 'Please sign in to book a turf',
+        variant: 'destructive',
       });
       navigate('/auth');
       return;
     }
-
     try {
       setIsLoading(true);
-
-      console.log("Creating booking with user ID:", user.id);
-      console.log("Selected turf ID for booking:", selectedTurf);
-      
       const { data, error } = await supabase
         .from('bookings')
         .insert({
@@ -247,60 +323,52 @@ const BookingCalendar = () => {
           start_time: startTime,
           end_time: endTime,
           total_price: price,
-          status: 'confirmed'
+          status: 'confirmed',
         })
-        .select('*, turf:turf_id(name, location)');
-        
+        .select('*, turf:turf_id(name)')
+        .single();
       if (error) throw error;
-      
-      console.log("Booking created successfully:", data);
-      
-      const bookingData = data[0];
-      
-      try {
-        const emailResponse = await fetch('http://localhost:3001/send-email', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            to: user.email,
-            type: 'confirmation',
-            bookingDetails: {
-              bookingId: bookingData.id,
-              turfName: bookingData.turf?.name || 'Turf',
-              date: bookingData.booking_date,
-              startTime: bookingData.start_time,
-              endTime: bookingData.end_time,
-              totalPrice: bookingData.total_price
-            }
-          })
-        });
-
-        if (!emailResponse.ok) {
-          throw new Error('Failed to send email');
-        }
-
-        const result = await emailResponse.json();
-        console.log("Email confirmation response:", result);
-      } catch (emailError) {
-        console.error("Error sending confirmation email:", emailError);
+      // Update points if used
+      if (usePoints && userPoints > 0) {
+        const { error: pointsError } = await supabase
+          .from('user_points')
+          .update({ points: userPoints - Math.min(userPoints, price) })
+          .eq('user_id', user.id);
+        if (pointsError) throw pointsError;
       }
-      
+      // Send confirmation email
+      await sendBookingEmail(
+        'confirmation',
+        {
+          bookingId: data.id,
+          turfName: data.turf?.name || 'Turf',
+          date: data.booking_date,
+          startTime: data.start_time,
+          endTime: data.end_time,
+          totalPrice: data.total_price,
+        },
+        user.email || ''
+      );
+      // Refresh booked slots
+      await fetchBookedSlots();
       toast({
-        title: "Booking confirmed!",
-        description: "Your turf has been booked successfully. A confirmation email has been sent to your inbox.",
-        variant: "default",
+        title: 'Booking successful!',
+        description: 'Your turf has been booked successfully.',
       });
-      
       navigate('/my-bookings');
-
     } catch (error: any) {
-      console.error('Error booking turf:', error);
+      console.error('Error creating booking:', error);
+      let errorMsg = error.message || 'Failed to create booking. Please try again.';
+      // Check for unique constraint violation
+      if (errorMsg.includes('unique_booking_slot_confirmed') || errorMsg.toLowerCase().includes('duplicate')) {
+        errorMsg = 'This slot was just booked by someone else. Please choose another slot.';
+        // Optionally, refresh booked slots
+        await fetchBookedSlots();
+      }
       toast({
-        title: "Booking failed",
-        description: error.message || "An error occurred while booking. Please try again.",
-        variant: "destructive",
+        title: 'Error',
+        description: errorMsg,
+        variant: 'destructive',
       });
     } finally {
       setIsLoading(false);
@@ -462,77 +530,98 @@ const BookingCalendar = () => {
                 </p>
               </div>
 
-              <div className="flex-1 bg-background rounded-xl p-6 space-y-6 animate-scale-up opacity-0 [animation-delay:300ms]">
-                <div className="space-y-4">
+              <div className="space-y-4">
+                <div className="flex justify-between items-center pb-4 border-b">
+                  <span className="text-sm text-muted-foreground">Date</span>
+                  <span className="text-sm font-medium flex items-center">
+                    <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
+                    {date ? date.toLocaleDateString("en-US", {
+                      weekday: "short",
+                      month: "short",
+                      day: "numeric",
+                    }) : "Select a date"}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center pb-4 border-b">
+                  <span className="text-sm text-muted-foreground">Time</span>
+                  <span className="text-sm font-medium flex items-center">
+                    <Clock className="mr-2 h-4 w-4 text-primary" />
+                    {startTime && endTime 
+                      ? `${formatTime(startTime)} - ${formatTime(endTime)}`
+                      : "Select times"}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center pb-4 border-b">
+                  <span className="text-sm text-muted-foreground">Duration</span>
+                  <span className="text-sm font-medium">
+                    {duration} {duration === 1 ? "hour" : "hours"}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center pb-4 border-b">
+                  <span className="text-sm text-muted-foreground">Players</span>
+                  <span className="text-sm font-medium flex items-center">
+                    <Users className="mr-2 h-4 w-4 text-primary" />
+                    {selectedPeople} people
+                  </span>
+                </div>
+              </div>
+
+              <div className="mt-6">
+                <div className="bg-muted/40 rounded-xl p-4 shadow-sm space-y-4 border border-primary/20 hover:shadow-lg hover:border-primary/40 transition">
                   <div className="flex justify-between items-center pb-4 border-b">
-                    <span className="text-sm text-muted-foreground">Date</span>
-                    <span className="text-sm font-medium flex items-center">
-                      <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
-                      {date ? date.toLocaleDateString("en-US", {
-                        weekday: "short",
-                        month: "short",
-                        day: "numeric",
-                      }) : "Select a date"}
-                    </span>
-                  </div>
-                  
-                  <div className="flex justify-between items-center pb-4 border-b">
-                    <span className="text-sm text-muted-foreground">Time</span>
-                    <span className="text-sm font-medium flex items-center">
-                      <Clock className="mr-2 h-4 w-4 text-primary" />
-                      {startTime && endTime 
-                        ? `${formatTime(startTime)} - ${formatTime(endTime)}`
-                        : "Select times"}
-                    </span>
-                  </div>
-                  
-                  <div className="flex justify-between items-center pb-4 border-b">
-                    <span className="text-sm text-muted-foreground">Duration</span>
+                    <span className="text-sm text-muted-foreground">Base Price</span>
                     <span className="text-sm font-medium">
-                      {duration} {duration === 1 ? "hour" : "hours"}
+                      {formatPrice(turfs.find(t => t.id === selectedTurf)?.price || 0 * duration)}
                     </span>
                   </div>
-                  
-                  <div className="flex justify-between items-center pb-4 border-b">
-                    <span className="text-sm text-muted-foreground">Players</span>
-                    <span className="text-sm font-medium flex items-center">
-                      <Users className="mr-2 h-4 w-4 text-primary" />
-                      {selectedPeople} people
-                    </span>
-                  </div>
-                  
+                  {userPoints > 0 && (
+                    <div className="flex items-center space-x-2 pb-4 border-b">
+                      <Checkbox
+                        id="use-points"
+                        checked={usePoints}
+                        onCheckedChange={(checked) => setUsePoints(checked as boolean)}
+                      />
+                      <label
+                        htmlFor="use-points"
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 flex items-center"
+                      >
+                        <Star className="h-4 w-4 mr-2 text-yellow-500" />
+                        Use {userPoints} points (₹{userPoints} off)
+                      </label>
+                    </div>
+                  )}
                   <div className="flex justify-between items-center pt-2">
                     <span className="text-sm font-medium">Total Price</span>
                     <span className="text-lg font-bold text-primary">{formatPrice(price)}</span>
                   </div>
                 </div>
+              </div>
 
-                {!isCurrentSelectionValid() && (
-                  <div className="flex items-start space-x-2 p-3 bg-destructive/10 rounded-lg text-destructive text-sm">
-                    <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                    <p>This time slot is already booked. Please select a different time.</p>
-                  </div>
-                )}
-
-                {!user && (
-                  <div className="flex items-start space-x-2 p-3 bg-amber-500/10 rounded-lg text-amber-600 text-sm">
-                    <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                    <p>You need to sign in to make a booking.</p>
-                  </div>
-                )}
-
-                <div className="pt-4">
-                  <Button 
-                    className="w-full rounded-xl py-6"
-                    disabled={!date || !startTime || !isCurrentSelectionValid() || !selectedTurf || isLoading}
-                    onClick={handleConfirmBooking}
-                  >
-                    {isLoading ? "Processing..." : "Confirm Booking"}
-                  </Button>
-                  <p className="text-xs text-muted-foreground text-center mt-3">
-                    You won't be charged until you confirm
-                  </p>
+              {!isCurrentSelectionValid() && (
+                <div className="flex items-start space-x-2 p-3 bg-destructive/10 rounded-lg text-destructive text-sm">
+                  <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                  <p>This time slot is already booked. Please select a different time.</p>
                 </div>
+              )}
+
+              {!user && (
+                <div className="flex items-start space-x-2 p-3 bg-amber-500/10 rounded-lg text-amber-600 text-sm">
+                  <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                  <p>You need to sign in to make a booking.</p>
+                </div>
+              )}
+
+              <div className="pt-4">
+                <Button 
+                  className="w-full rounded-xl py-6"
+                  disabled={!date || !startTime || !isCurrentSelectionValid() || !selectedTurf || isLoading}
+                  onClick={handleConfirmBooking}
+                >
+                  {isLoading ? "Processing..." : "Confirm Booking"}
+                </Button>
+                <p className="text-xs text-muted-foreground text-center mt-3">
+                  You won't be charged until you confirm
+                </p>
               </div>
             </div>
           </div>

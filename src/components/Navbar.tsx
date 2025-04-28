@@ -97,6 +97,13 @@ const Navbar = () => {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-48">
                     <DropdownMenuItem asChild className="cursor-pointer">
+                      <Link to="/profile" className="flex items-center">
+                        <User className="h-4 w-4 mr-2" />
+                        Profile
+                      </Link>
+                    </DropdownMenuItem>
+                    
+                    <DropdownMenuItem asChild className="cursor-pointer">
                       <Link to="/my-bookings" className="flex items-center">
                         <CalendarDays className="h-4 w-4 mr-2" />
                         My Bookings
@@ -123,8 +130,8 @@ const Navbar = () => {
                     
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
-                      onClick={() => signOut()}
-                      className="cursor-pointer text-destructive focus:text-destructive"
+                      className="text-destructive cursor-pointer"
+                      onClick={signOut}
                     >
                       <LogOut className="h-4 w-4 mr-2" />
                       Sign Out
